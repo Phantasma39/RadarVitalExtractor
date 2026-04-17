@@ -123,6 +123,7 @@ venv.bak/
 # FPGA/Vivado files (如果后续加Vivado项目也能过滤)
 *.bit
 *.bin
+*.csv
 *.ltx
 *.rpt
 *.log
