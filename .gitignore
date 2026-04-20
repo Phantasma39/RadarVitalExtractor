@@ -11,6 +11,7 @@ venv/
 # ===== 数据文件（你重点要的）=====
 *.csv
 *.bin
+<<<<<<< HEAD
 
 # ===== NumPy / 数据缓存 =====
 *.npy
@@ -55,3 +56,17 @@ pip-wheel-metadata/
 *.swp
 /Draw.py
 /rename.py
+=======
+*.csv
+*.ltx
+*.rpt
+*.log
+*.jou
+*.wdb
+*.sim
+*.xci
+*.xdc~
+vivado*.log
+vivado*.jou
+Xilinx/
+>>>>>>> 6f60ccf549f5a26b58c38b718048768933efb8a7
