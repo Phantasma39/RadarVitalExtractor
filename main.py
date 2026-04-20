@@ -53,56 +53,49 @@ for i in range(len(target_bins)):
 
 signal = final_signal(range_data, target_bins)  # 得到最终结果
 
-signal = signal - np.mean(signal)
-
-N = target_bins.shape[0]  # 12通道
-
-beamformed = []
-
-angles = np.linspace(-60, 60, 121)  # 角度范围
-
-for theta in angles:
-
-    theta_rad = np.deg2rad(theta)
-
-    w = np.exp(-1j * 2 * np.pi * d * np.arange(N) * np.sin(theta_rad) / lam)
-
-    y = np.dot(w.conj(), signal)  # 合成
-
-    beamformed.append(y)
-
-beamformed = np.array(beamformed)
-
-best_signal=compute_displacement(
-        beamformed,
-        fc=77e9,
-        frame_rate=250,  # Hz (4ms → 250Hz)
-        do_detrend=True,
-        do_filter=True,
-        lowcut=0.5,
-        highcut=5.0,
-        filter_order=4,
-        save_csv=True,
-        save_dir="output"
-)
-
-# # 去直流偏置看看效果
-# for i in range(len(target_bins)):
-#     xc, yc, R = fit_circle_ransac_iq(signal[i])
-#     if xc is None:
+# signal = signal - np.mean(signal)
 #
-#         print(f"通道{i}拟合失败，取平均值处理")
-#     else:
-#         signal[i] = signal[i] - xc - yc * 1j
-#         print(f"通道{i}拟合成功")
+# N = target_bins.shape[0]  # 12通道
+#
+# beamformed = []
+#
+# angles = np.linspace(-60, 60, 121)  # 角度范围
+#
+# for theta in angles:
+#
+#     theta_rad = np.deg2rad(theta)
+#
+#     w = np.exp(-1j * 2 * np.pi * d * np.arange(N) * np.sin(theta_rad) / lam)
+#
+#     y = np.dot(w.conj(), signal)  # 合成
+#
+#     beamformed.append(y)
+#
+# beamformed = np.array(beamformed)
+#
+# best_signal=compute_displacement(
+#         beamformed,
+#         fc=77e9,
+#         frame_rate=250,  # Hz (4ms → 250Hz)
+#         do_detrend=True,
+#         do_filter=True,
+#         lowcut=0.5,
+#         highcut=5.0,
+#         filter_order=4,
+#         save_csv=True,
+#         save_dir="output"
+# )
 
-plt.figure()
-plt.imshow(np.abs(beamformed), aspect='auto', origin='lower')
-plt.title("Angle-Time Map")
-plt.xlabel("Frame")
-plt.ylabel("Angle Index")
-plt.colorbar()
-plt.show()
+# 去直流偏置看看效果
+for i in range(len(target_bins)):
+    xc, yc, R = fit_circle_ransac_iq(signal[i])
+    if xc is None:
+
+        print(f"通道{i}拟合失败，取平均值处理")
+    else:
+        signal[i] = signal[i] - xc - yc * 1j
+        print(f"通道{i}拟合成功")
+
 
 disp = compute_displacement(
     signal,

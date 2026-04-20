@@ -38,7 +38,7 @@ def compute_displacement(
     phase = np.angle(final_signal)
 
     # ===== 2. 相位解缠 =====
-    phase_unwrap = np.unwrap(phase, axis=1)
+    phase_unwrap =np.unwrap(phase, axis=1)
 
     # ===== 3. 转微位移 =====
     disp = (c / (4 * np.pi * fc)) * (phase_unwrap - phase_unwrap[:, [0]])
@@ -99,14 +99,14 @@ def compute_displacement(
     angles = np.linspace(-60, 60, 121)
     print("最佳角度索引:", best_idx)
     print("对应角度:", angles[best_idx])
-
-    # #===== 7. 绘图（12个通道分开）=====
-    plt.figure(figsize=(16, 4))
-    plt.plot(disp[best_idx])
-    plt.title(f"Channel {best_idx} Displacement")
-    plt.xlabel("Frame")
-    plt.ylabel("Displacement (m)")
-    plt.grid()
-    plt.show()
+    for ch in range(disp.shape[0]):
+        # #===== 7. 绘图（12个通道分开）=====
+        plt.figure(figsize=(16, 4))
+        plt.plot(disp[ch])
+        plt.title(f"Channel{ch}")
+        plt.xlabel("Frame")
+        plt.ylabel("Displacement (m)")
+        plt.grid()
+        plt.show()
 
     return disp[best_idx]

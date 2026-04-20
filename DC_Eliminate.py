@@ -71,11 +71,13 @@ def fit_circle_ransac_iq(z,
     xc, yc, R = fit_circle_least_squares(best_inliers)
 
     # ---- Plot IQ data and fitted circle (single plot) ----
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
     ax.scatter(pts[:, 0], pts[:, 1], s=1)
     theta = np.linspace(0, 2 * np.pi, 400)
     ax.plot(xc + R * np.cos(theta), yc + R * np.sin(theta), color='red')
     ax.scatter([xc], [yc])
+    ax.set_xlim(-500, 500)
+    ax.set_ylim(-500, 500)
     ax.set_aspect('equal', adjustable='box')
     ax.set_xlabel('I')
     ax.set_ylabel('Q')
@@ -84,7 +86,6 @@ def fit_circle_ransac_iq(z,
     ax.text(xc, yc, f"({xc:.3f}, {yc:.3f})",
             ha='left', va='bottom')
 
-    #要画图就别注释
-    #plt.show()
+    plt.show()
 
     return xc, yc, R
