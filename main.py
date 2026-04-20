@@ -9,7 +9,7 @@ import os
 from scipy.signal import butter, filtfilt, detrend
 import matplotlib.pyplot as plt
 
-file_path = r"F:\data_new\adc_data_Raw_mayuning_8.bin"
+file_path = r"F:\data_new\adc_data_Raw_sujunwei_1.bin"
 name = os.path.splitext(os.path.basename(file_path))[0]
 
 print(name)
@@ -29,13 +29,13 @@ adc_data = read_and_decode(file_path)
 range_data = range_fft(
     adc_data,
     axis=-1,
-    fft_len=512,
+    fft_len=FFT_len,
     window_type="hann",
     remove_dc=True,
     keep_positive=True,
     output="complex"
 )
-
+print("fuck you")
 # ===== 计算功率并选最大bin =====
 power = np.mean(np.abs(range_data), axis=(1, 2))  # (12, RangeBin)
 
@@ -86,15 +86,14 @@ signal = final_signal(range_data, target_bins)  # 得到最终结果
 #         save_dir="output"
 # )
 
-# 去直流偏置看看效果
-for i in range(len(target_bins)):
-    xc, yc, R = fit_circle_ransac_iq(signal[i])
-    if xc is None:
-
-        print(f"通道{i}拟合失败，取平均值处理")
-    else:
-        signal[i] = signal[i] - xc - yc * 1j
-        print(f"通道{i}拟合成功")
+#去直流偏置看看效果
+# for i in range(len(target_bins)):
+#     xc, yc, R = fit_circle_ransac_iq(signal[i])
+#     if xc is None:
+#         print(f"通道{i}拟合失败，取平均值处理")
+#     else:
+#         signal[i] = signal[i] - xc - yc * 1j
+#         print(f"通道{i}拟合成功")
 
 
 disp = compute_displacement(

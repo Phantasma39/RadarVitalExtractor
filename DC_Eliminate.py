@@ -76,8 +76,6 @@ def fit_circle_ransac_iq(z,
     theta = np.linspace(0, 2 * np.pi, 400)
     ax.plot(xc + R * np.cos(theta), yc + R * np.sin(theta), color='red')
     ax.scatter([xc], [yc])
-    ax.set_xlim(-500, 500)
-    ax.set_ylim(-500, 500)
     ax.set_aspect('equal', adjustable='box')
     ax.set_xlabel('I')
     ax.set_ylabel('Q')

@@ -76,6 +76,8 @@ def range_fft(
 
     # ===== 4. FFT =====
     fft_out = np.fft.fft(x, n=fft_len, axis=axis)
+    fft_out = fft_out / fft_len
+    print("fuck you")
 
     # ===== 5. 保留正频率 =====
     if keep_positive:
