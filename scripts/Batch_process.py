@@ -1,10 +1,11 @@
 import numpy as np
-from utils import read_and_decode
-from range_fft import range_fft, final_signal
-from DC_Eliminate import fit_circle_ransac_iq
-from displacement_processing import compute_displacement
 import os
-from tqdm import tqdm  
+from tqdm import tqdm 
+
+from src.utils import read_and_decode
+from src.range_fft import range_fft, final_signal
+from src.DC_Eliminate import fit_circle_ransac_iq
+from src.displacement_processing import compute_displacement 
 
 # ===== 数据文件夹 =====
 data_folder = r"F:\data_new"

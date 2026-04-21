@@ -2,9 +2,10 @@ import numpy as np
 import joblib
 
 # ===== 加载模型（程序启动时执行一次）=====
-model = joblib.load("rf_model.pkl")
-threshold = joblib.load("threshold.pkl")  # 比如 0.6
+model = joblib.load(r"models/rf_model.pkl")
+threshold = joblib.load(r"models/threshold.pkl")  # 比如 0.6
 
+#print("模型加载成功")
 
 def judge_channel(sig, fs):
     """

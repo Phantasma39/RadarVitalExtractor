@@ -1,13 +1,14 @@
 import numpy as np
-from scipy.signal import butter, filtfilt
-from Judge import judge_channel
-from utils import read_and_decode
-from range_fft import range_fft, final_signal
-from DC_Eliminate import fit_circle_ransac_iq
-from displacement_processing import compute_displacement, bandpass_filter
+from scipy.signal import butter, filtfilt,detrend
 import os
-from scipy.signal import butter, filtfilt, detrend
 import matplotlib.pyplot as plt
+
+from src.Judge import judge_channel
+from src.utils import read_and_decode
+from src.range_fft import range_fft, final_signal
+from src.DC_Eliminate import fit_circle_ransac_iq
+from src.displacement_processing import compute_displacement, bandpass_filter
+
 
 file_path = r"F:\data_new\adc_data_Raw_sujunwei_1.bin"
 name = os.path.splitext(os.path.basename(file_path))[0]
