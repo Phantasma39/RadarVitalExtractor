@@ -77,7 +77,6 @@ def range_fft(
     # ===== 4. FFT =====
     fft_out = np.fft.fft(x, n=fft_len, axis=axis)
     fft_out = fft_out / fft_len
-    print("fuck you")
 
     # ===== 5. 保留正频率 =====
     if keep_positive:
@@ -119,5 +118,5 @@ def final_signal(range_data,target_bins):
 
     # final_signal: (12, Frame)
 
-    print(final_signal.shape)
+    #print(final_signal.shape)
     return final_signal

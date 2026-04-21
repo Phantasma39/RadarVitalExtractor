@@ -35,7 +35,6 @@ range_data = range_fft(
     keep_positive=True,
     output="complex"
 )
-print("fuck you")
 # ===== 计算功率并选最大bin =====
 power = np.mean(np.abs(range_data), axis=(1, 2))  # (12, RangeBin)
 

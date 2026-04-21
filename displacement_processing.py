@@ -26,7 +26,9 @@ def compute_displacement(
         highcut=2.0,
         filter_order=4,
         save_csv=True,
-        save_dir="output"
+        save_dir="output",
+        save_root = r"F:\\my_output",
+        draw=False
 ):
     """
     final_signal: (12, Frame) 复数信号
@@ -60,7 +62,7 @@ def compute_displacement(
     # ===== 6. 保存CSV（带时间）=====
     if save_csv:
         # ===== 你自己指定的总目录（只需要改这里）=====
-        save_root = r"F:\my_output"  # ⭐⭐⭐ 改这里
+        save_root = r"F:\\my_output"  # ⭐⭐⭐ 改这里
 
         # ===== 在总目录下再建子文件夹 =====
         final_save_dir = os.path.join(save_root, save_dir)
@@ -75,7 +77,7 @@ def compute_displacement(
         for ch in range(disp.shape[0]):
             is_good, prob = judge_channel(disp[ch], frame_rate)
             scores.append(prob)
-            if is_good:
+            if True:
                 filename = os.path.join(final_save_dir, f"channel_{ch}_prob_{int(prob*100)}.csv")
 
                 data_to_save = np.column_stack((t, disp[ch]))
@@ -88,25 +90,22 @@ def compute_displacement(
                     comments=''
                 )
 
-                print(f"通道{ch}结果较好，已经保存,概率为{prob}")
+                #print(f"通道{ch}结果较好，已经保存,概率为{prob}")
 
             else:
                 print(f"通道{ch}结果较差，噪声过大或没有对准，概率为{prob}未保存")
 
     scores = np.array(scores)
-
     best_idx = np.argmax(scores)
-    angles = np.linspace(-60, 60, 121)
-    print("最佳角度索引:", best_idx)
-    print("对应角度:", angles[best_idx])
-    for ch in range(disp.shape[0]):
-        # #===== 7. 绘图（12个通道分开）=====
-        plt.figure(figsize=(16, 4))
-        plt.plot(disp[ch])
-        plt.title(f"Channel{ch}")
-        plt.xlabel("Frame")
-        plt.ylabel("Displacement (m)")
-        plt.grid()
-        plt.show()
+    if draw:
+        for ch in range(disp.shape[0]):
+            # #===== 7. 绘图（12个通道分开）=====
+            plt.figure(figsize=(16, 4))
+            plt.plot(disp[ch])
+            plt.title(f"Channel{ch}")
+            plt.xlabel("Frame")
+            plt.ylabel("Displacement (m)")
+            plt.grid()
+            plt.show()
 
     return disp[best_idx]

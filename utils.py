@@ -75,7 +75,7 @@ def read_and_decode(bin_file):
     # ========= 1. 读数据 =========
     adc_raw = read_bin_complex2x_4lane(bin_file)
 
-    print("Raw shape:", adc_raw.shape)
+    #print("Raw shape:", adc_raw.shape)
 
     # ========= 2. reshape =========
     adc = reshape_adc(
@@ -86,12 +86,12 @@ def read_and_decode(bin_file):
         num_samples
     )
 
-    print("ADC shape:", adc.shape)
+    # print("ADC shape:", adc.shape)
 
     # ========= 3. 构建12通道 =========
     virtual = build_virtual_channels(adc)
 
-    print("Virtual shape:", virtual.shape)
+    # print("Virtual shape:", virtual.shape)
     # 应该是 (12, 6250, 8, 256)
     return virtual
 
