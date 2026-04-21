@@ -27,7 +27,7 @@ venv/
 *.png
 *.jpg
 *.jpeg
-*.pdf
+
 
 # ===== 系统文件 =====
 .DS_Store
