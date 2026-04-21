@@ -61,8 +61,6 @@ def compute_displacement(
 
     # ===== 6. 保存CSV（带时间）=====
     if save_csv:
-        # ===== 你自己指定的总目录（只需要改这里）=====
-        save_root = r"F:\\my_output"  # ⭐⭐⭐ 改这里
 
         # ===== 在总目录下再建子文件夹 =====
         final_save_dir = os.path.join(save_root, save_dir)
