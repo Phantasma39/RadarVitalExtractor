@@ -70,3 +70,7 @@ pip install -r requirements.txt
 
 # 程序运行
 python main.py
+
+# 安装自定义包（必须执行，否则找不到库函数）
+在项目主文件夹运行 pip install -e .
+

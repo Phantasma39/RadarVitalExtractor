@@ -3,11 +3,11 @@ from scipy.signal import butter, filtfilt,detrend
 import os
 import matplotlib.pyplot as plt
 
-from src.Judge import judge_channel
-from src.utils import read_and_decode
-from src.range_fft import range_fft, final_signal
-from src.DC_Eliminate import fit_circle_ransac_iq
-from src.displacement_processing import compute_displacement, bandpass_filter
+from radar_project.Judge import judge_channel
+from radar_project.utils import read_and_decode
+from radar_project.range_fft import range_fft, final_signal
+from radar_project.DC_Eliminate import fit_circle_ransac_iq
+from radar_project.displacement_processing import compute_displacement, bandpass_filter
 
 
 file_path = r"F:\data_new\adc_data_Raw_sujunwei_1.bin"

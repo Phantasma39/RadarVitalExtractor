@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from src.utils import read_and_decode
-from src.DC_Eliminate import fit_circle_ransac_iq
+from radar_project.utils import read_and_decode
+from radar_project.DC_Eliminate import fit_circle_ransac_iq
 
 
 # =========================
