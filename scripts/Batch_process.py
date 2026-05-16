@@ -1,11 +1,10 @@
 import numpy as np
 import os
 from tqdm import tqdm 
-
-from src.utils import read_and_decode
-from src.range_fft import range_fft, final_signal
-from src.DC_Eliminate import fit_circle_ransac_iq
-from src.displacement_processing import compute_displacement 
+from radar_project.utils import read_and_decode
+from radar_project.range_fft import range_fft, final_signal
+from radar_project.DC_Eliminate import fit_circle_ransac_iq
+from radar_project.displacement_processing import compute_displacement 
 
 # ===== 数据文件夹 =====
 data_folder = r"F:\data_new"
@@ -50,6 +49,16 @@ for file in tqdm(file_list, desc="整体进度", unit="文件"):
         signal = final_signal(range_data, target_bins)
         signal = signal - np.mean(signal)
 
+        
+        #去直流偏置看看效果
+        for i in range(len(target_bins)):
+            xc, yc, R = fit_circle_ransac_iq(signal[i])
+            if xc is None:
+                print(f"通道{i}拟合失败，取平均值处理")
+            else:
+                signal[i] = signal[i] - xc - yc * 1j
+                print(f"通道{i}拟合成功")
+
         disp = compute_displacement(
             signal,
             fc=fc,
@@ -60,7 +69,7 @@ for file in tqdm(file_list, desc="整体进度", unit="文件"):
             highcut=5.0,
             filter_order=4,
             save_csv=True,
-            save_root = r"F:\\my_output_new",
+            save_root = r"F:\\my_output_new_DC",
             save_dir="output_" + name
         )
 

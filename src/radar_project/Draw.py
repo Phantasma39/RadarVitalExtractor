@@ -5,7 +5,7 @@ from scipy.signal import butter, filtfilt
 from Judge import judge_channel
 from utils import read_and_decode
 from range_fft import range_fft, final_signal
-from DC_Eliminate import fit_circle_ransac_iq
+from radar_project.DC_Eliminate import fit_circle_ransac_iq
 from displacement_processing import compute_displacement, bandpass_filter
 import os
 from scipy.signal import butter, filtfilt, detrend
