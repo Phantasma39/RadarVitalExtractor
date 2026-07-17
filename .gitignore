@@ -71,5 +71,10 @@ dist/
 # ===== matplotlib cache =====
 .matplotlib/
 
+# ===== 本地工具（不上传）=====
+src/radar_project/Delete.py
+scripts/Delete.py
+scripts/Draw.py
+
 # ===== pip cache =====
 pip-wheel-metadata/

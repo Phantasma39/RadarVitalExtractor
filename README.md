@@ -70,7 +70,6 @@ RADAR/
 │   ├── IQ.py                   # IQ 星座图分析
 │   ├── select_file.py          # 按概率筛选文件
 │   ├── Select.py               # 模型训练脚本
-│   ├── Delete.py               # 删除低质量文件
 │   ├── rename.py               # 批量重命名
 │   └── TEST.py                 # 测试代码
 ├── scripts/                    # 便捷运行脚本
