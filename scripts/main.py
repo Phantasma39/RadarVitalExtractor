@@ -1,7 +1,8 @@
-# 单文件处理脚本
-# 使用方式: python scripts/main.py <bin文件路径> [输出目录]
+# ====================== 这里修改路径 ======================
+file_path = r"F:\data_new\adc_data_Raw_sujunwei_13.bin"
+output_root = r"F:\my_output"
+# ==========================================================
 
-import sys
 import os
 import numpy as np
 import matplotlib
@@ -13,14 +14,6 @@ from radar_project.utils import read_and_decode
 from radar_project.range_fft import range_fft, final_signal
 from radar_project.DC_Eliminate import fit_circle_ransac_iq
 from radar_project.displacement_processing import compute_displacement, bandpass_filter
-
-
-file_path = sys.argv[1] if len(sys.argv) >= 2 else None
-if file_path is None or not os.path.exists(file_path):
-    print("用法: python scripts/main.py <bin文件路径> [输出目录]")
-    sys.exit(1)
-
-output_root = sys.argv[2] if len(sys.argv) >= 3 else "output"
 
 name = os.path.splitext(os.path.basename(file_path))[0]
 
@@ -35,7 +28,6 @@ frame_rate = 250  # 帧率
 lam = c_v / fc
 d = lam / 2  # 天线间距
 
-
 adc_data = read_and_decode(file_path)
 
 range_data = range_fft(
@@ -47,7 +39,6 @@ range_data = range_fft(
     keep_positive=True,
     output="complex"
 )
-
 # ===== 计算功率并选最大bin =====
 power = np.mean(np.abs(range_data), axis=(1, 2))  # (12, RangeBin)
 
@@ -55,14 +46,12 @@ target_bins = np.argmax(power, axis=1)  # (12,)
 
 print("Target bins:", target_bins)
 
-
 for i in range(len(target_bins)):
     frequency = target_bins[i] * (sample_rate / FFT_len)
     R = (frequency * 3e8) / (2 * frequency_slope)
     print(f"通道{i}选取频率为{frequency}Hz,对应的距离为{R}m.")
 
 signal = final_signal(range_data, target_bins)  # 得到最终结果
-
 
 # 去直流偏置看看效果
 for i in range(len(target_bins)):
@@ -73,7 +62,6 @@ for i in range(len(target_bins)):
         print(f"{xc},{yc}")
         signal[i] = signal[i] - xc - yc * 1j
         print(f"通道{i}拟合成功")
-
 
 disp = compute_displacement(
     signal,

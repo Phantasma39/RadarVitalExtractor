@@ -1,7 +1,8 @@
-# 批量处理脚本
-# 使用方式: python scripts/Batch_process.py <数据文件夹路径> [输出目录]
+# ====================== 这里修改路径 ======================
+data_folder = r"F:\data_new"
+output_root = r"F:\my_output_new_DC"
+# ==========================================================
 
-import sys
 import os
 import numpy as np
 from tqdm import tqdm
@@ -10,26 +11,9 @@ from radar_project.range_fft import range_fft, final_signal
 from radar_project.DC_Eliminate import fit_circle_ransac_iq
 from radar_project.displacement_processing import compute_displacement
 
-# ===== 数据文件夹 =====
-if len(sys.argv) < 2:
-    print("用法: python scripts/Batch_process.py <数据文件夹路径> [输出目录]")
-    print("示例: python scripts/Batch_process.py F:/data_new F:/my_output")
-    sys.exit(1)
-
-data_folder = sys.argv[1]
-output_root = sys.argv[2] if len(sys.argv) >= 3 else "batch_output"
-
-if not os.path.isdir(data_folder):
-    print(f"错误: 文件夹不存在 - {data_folder}")
-    sys.exit(1)
-
 # ===== 获取所有 bin 文件 =====
 file_list = [f for f in os.listdir(data_folder) if f.endswith(".bin")]
 total_files = len(file_list)
-
-if total_files == 0:
-    print(f"错误: 在 {data_folder} 中未找到 .bin 文件")
-    sys.exit(1)
 
 print(f"✅ 找到 {total_files} 个 .bin 文件，开始处理...\n")
 
