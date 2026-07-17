@@ -11,6 +11,9 @@ matplotlib>=3.4.0
 # 机器学习/模型（你有rf_model.pkl）
 scikit-learn>=1.0.0
 
+# 进度条
+tqdm>=4.60.0
+
 # 可选：信号处理增强（按需保留）
 # librosa>=0.8.1
 # pyfftw>=0.13.0

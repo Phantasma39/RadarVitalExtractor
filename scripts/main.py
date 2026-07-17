@@ -1,6 +1,11 @@
-import numpy as np
-from scipy.signal import butter, filtfilt,detrend
+# 单文件处理脚本
+# 使用方式: python scripts/main.py <bin文件路径> [输出目录]
+
+import sys
 import os
+import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from radar_project.Judge import judge_channel
@@ -10,7 +15,13 @@ from radar_project.DC_Eliminate import fit_circle_ransac_iq
 from radar_project.displacement_processing import compute_displacement, bandpass_filter
 
 
-file_path = r"F:\data_new\adc_data_Raw_sujunwei_1.bin"
+file_path = sys.argv[1] if len(sys.argv) >= 2 else None
+if file_path is None or not os.path.exists(file_path):
+    print("用法: python scripts/main.py <bin文件路径> [输出目录]")
+    sys.exit(1)
+
+output_root = sys.argv[2] if len(sys.argv) >= 3 else "output"
+
 name = os.path.splitext(os.path.basename(file_path))[0]
 
 print(name)
@@ -36,14 +47,13 @@ range_data = range_fft(
     keep_positive=True,
     output="complex"
 )
+
 # ===== 计算功率并选最大bin =====
 power = np.mean(np.abs(range_data), axis=(1, 2))  # (12, RangeBin)
 
 target_bins = np.argmax(power, axis=1)  # (12,)
 
 print("Target bins:", target_bins)
-
-
 
 
 for i in range(len(target_bins)):
@@ -53,47 +63,16 @@ for i in range(len(target_bins)):
 
 signal = final_signal(range_data, target_bins)  # 得到最终结果
 
-# signal = signal - np.mean(signal)
-#
-# N = target_bins.shape[0]  # 12通道
-#
-# beamformed = []
-#
-# angles = np.linspace(-60, 60, 121)  # 角度范围
-#
-# for theta in angles:
-#
-#     theta_rad = np.deg2rad(theta)
-#
-#     w = np.exp(-1j * 2 * np.pi * d * np.arange(N) * np.sin(theta_rad) / lam)
-#
-#     y = np.dot(w.conj(), signal)  # 合成
-#
-#     beamformed.append(y)
-#
-# beamformed = np.array(beamformed)
-#
-# best_signal=compute_displacement(
-#         beamformed,
-#         fc=77e9,
-#         frame_rate=250,  # Hz (4ms → 250Hz)
-#         do_detrend=True,
-#         do_filter=True,
-#         lowcut=0.5,
-#         highcut=5.0,
-#         filter_order=4,
-#         save_csv=True,
-#         save_dir="output"
-# )
 
-#去直流偏置看看效果
-# for i in range(len(target_bins)):
-#     xc, yc, R = fit_circle_ransac_iq(signal[i])
-#     if xc is None:
-#         print(f"通道{i}拟合失败，取平均值处理")
-#     else:
-#         signal[i] = signal[i] - xc - yc * 1j
-#         print(f"通道{i}拟合成功")
+# 去直流偏置看看效果
+for i in range(len(target_bins)):
+    xc, yc, R = fit_circle_ransac_iq(signal[i])
+    if xc is None:
+        print(f"通道{i}拟合失败，取平均值处理")
+    else:
+        print(f"{xc},{yc}")
+        signal[i] = signal[i] - xc - yc * 1j
+        print(f"通道{i}拟合成功")
 
 
 disp = compute_displacement(
@@ -106,4 +85,9 @@ disp = compute_displacement(
     highcut=5.0,
     filter_order=4,
     save_csv=True,
-    save_dir="output_" + name)
+    save_root=output_root,
+    save_dir="output_" + name,
+    draw=False
+)
+
+print(f"完成！结果保存到: {os.path.join(output_root, 'output_' + name)}")

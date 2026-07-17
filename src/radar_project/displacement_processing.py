@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt, detrend
 import os
-from Judge import judge_channel
+from radar_project.Judge import judge_channel
 
 
 # ===== 1. 带通滤波器 =====
@@ -27,7 +27,7 @@ def compute_displacement(
         filter_order=4,
         save_csv=True,
         save_dir="output",
-        save_root = r"F:\\my_output",
+        save_root = r"D:\\my_output",
         draw=False
 ):
     """
@@ -79,12 +79,12 @@ def compute_displacement(
                 filename = os.path.join(final_save_dir, f"channel_{ch}_prob_{int(prob*100)}.csv")
 
                 data_to_save = np.column_stack((t, disp[ch]))
-
+                print(filename)
                 np.savetxt(
                     filename,
                     data_to_save,
                     delimiter=',',
-                    header="time(s),displacement(mm)",
+                    header="time(s),displacement(m)",
                     comments=''
                 )
 
@@ -93,17 +93,33 @@ def compute_displacement(
             else:
                 print(f"通道{ch}结果较差，噪声过大或没有对准，概率为{prob}未保存")
 
-    scores = np.array(scores)
-    best_idx = np.argmax(scores)
+        scores = np.array(scores)
+        best_idx = np.argmax(scores)
     if draw:
+        # 计算所有通道的统一纵坐标范围
+        all_disp = disp.flatten()
+        y_min = np.min(all_disp)
+        y_max = np.max(all_disp)
+        margin = 0.05 * (y_max - y_min) if y_max != y_min else 0.1
+        y_min -= margin
+        y_max += margin
+
+        # 保存到 save_root 下的 SVG 文件夹（例如 F:\my_output\SVG）
+        svg_root = os.path.join(save_root, "SVG_2")
+        os.makedirs(svg_root, exist_ok=True)
+
         for ch in range(disp.shape[0]):
-            # #===== 7. 绘图（12个通道分开）=====
             plt.figure(figsize=(16, 4))
             plt.plot(disp[ch])
-            plt.title(f"Channel{ch}")
+            plt.title(f"Channel {ch} - Displacement")
             plt.xlabel("Frame")
             plt.ylabel("Displacement (m)")
-            plt.grid()
-            plt.show()
+            plt.grid(True)
+            plt.ylim(y_min, y_max)      # 统一纵坐标
+
+            svg_path = os.path.join(svg_root, f"displacement_ch{ch}.svg")
+            plt.savefig(svg_path, format='svg', bbox_inches='tight')
+            print(f"已保存: {svg_path}")
+            plt.close()
 
     return disp[best_idx]

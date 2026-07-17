@@ -1,9 +1,15 @@
 import numpy as np
 import joblib
+import os
 
 # ===== 加载模型（程序启动时执行一次）=====
-model = joblib.load(r"models/rf_model.pkl")
-threshold = joblib.load(r"models/threshold.pkl")  # 比如 0.6
+# 模型路径：相对于当前文件的上级目录（即项目根目录）
+_MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "models")
+rf_model_path = os.path.join(_MODEL_DIR, "rf_model.pkl")
+threshold_path = os.path.join(_MODEL_DIR, "threshold.pkl")
+
+model = joblib.load(rf_model_path)
+threshold = joblib.load(threshold_path)  # 比如 0.6
 
 #print("模型加载成功")
 

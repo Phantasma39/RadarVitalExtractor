@@ -8,10 +8,9 @@ venv/
 .env/
 .venv/
 
-# ===== 数据文件（你重点要的）=====
+# ===== 数据文件 =====
 *.csv
 *.bin
-<<<<<<< HEAD
 
 # ===== NumPy / 数据缓存 =====
 *.npy
@@ -23,11 +22,33 @@ venv/
 # ===== 日志 =====
 *.log
 
-# ===== 图像输出（可选，不想上传结果图就留着）=====
+# ===== 图像输出 =====
 *.png
 *.jpg
 *.jpeg
+*.svg
+*.pdf
+*.eps
 
+# ===== 输出目录 =====
+output/
+output_*/
+batch_output/
+test_output/
+figuress/
+SVG_2/
+
+# ===== Vivado / FPGA =====
+*.ltx
+*.rpt
+*.jou
+*.wdb
+*.sim
+*.xci
+*.xdc~
+vivado*.log
+vivado*.jou
+Xilinx/
 
 # ===== 系统文件 =====
 .DS_Store
@@ -45,30 +66,10 @@ dist/
 # ===== 临时文件 =====
 *.tmp
 *.temp
+*.swp
 
 # ===== matplotlib cache =====
 .matplotlib/
 
 # ===== pip cache =====
 pip-wheel-metadata/
-
-# ===== macOS =====
-*.swp
-/Draw.py
-/rename.py
-=======
-*.csv
-*.ltx
-*.rpt
-*.log
-*.jou
-*.wdb
-*.sim
-*.xci
-*.xdc~
-vivado*.log
-vivado*.jou
-Xilinx/
->>>>>>> 6f60ccf549f5a26b58c38b718048768933efb8a7
-Delete.py
-rename.py

@@ -1,4 +1,11 @@
+# 端到端测试脚本（独立版，不依赖包安装）
+# 使用方式: python scripts/TEST.py <bin文件路径>
+
+import sys
+import os
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
@@ -13,7 +20,7 @@ def read_bin_complex2x_4lane(bin_file):
     lane2 = data[:, 2]
     lane3 = data[:, 3]
 
-    # IQ组合（你已经验证过这个是对的）
+    # IQ组合（已验证正确）
     rx0 = lane0 + 1j * lane2
     rx1 = lane1 + 1j * lane3
 
@@ -98,7 +105,7 @@ def compute_displacement(range_data, target_bin):
         # 取该bin
         sig = range_data[ch, :, :, bin_idx]  # [Frame, Chirp]
 
-        # chirp平均（这里才可以平均！）
+        # chirp平均
         sig = np.mean(sig, axis=1)  # [Frame]
 
         # 相位
@@ -117,9 +124,17 @@ def compute_displacement(range_data, target_bin):
 
 # ================== 7. 主函数 ==================
 def main():
-    # ===== 参数 =====
-    bin_file = "DATA/miaoyuxin_004_Raw_0.bin"
+    if len(sys.argv) < 2:
+        print("用法: python scripts/TEST.py <bin文件路径>")
+        print("示例: python scripts/TEST.py F:/data_new/adc_data_Raw_xxx.bin")
+        sys.exit(1)
 
+    bin_file = sys.argv[1]
+    if not os.path.exists(bin_file):
+        print(f"错误: 文件不存在 - {bin_file}")
+        sys.exit(1)
+
+    # ===== 参数 =====
     num_frames = 6250
     num_chirps = 24
     num_rx = 4
@@ -186,7 +201,12 @@ def main():
     plt.ylabel("Meter")
     plt.legend()
 
-    plt.show()
+    # 保存为 SVG 而非弹窗显示
+    os.makedirs("test_output", exist_ok=True)
+    name = os.path.splitext(os.path.basename(bin_file))[0]
+    plt.savefig(f"test_output/displacement_{name}.svg", format='svg', bbox_inches='tight')
+    print(f"\n✅ 测试图已保存到: test_output/displacement_{name}.svg")
+    plt.close('all')
 
 
 if __name__ == "__main__":

@@ -1,11 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import time
 
 
 def fit_circle_ransac_iq(z,
                          n_iter=20000,
-                         min_inlier_ratio=0.2,  # 这个是有几个点在规定范围内，越大越严格
-                         random_state=None):
+                         min_inlier_ratio=0.1,  # 这个是有几个点在规定范围内，越大越严格
+                         random_state=None
+                         ):
     scale = np.max(np.abs(z))  # 确定eps值，因为数据很大
     eps = 0.003 * scale  # 这个是误差范围，越小越严格
 
@@ -72,20 +75,26 @@ def fit_circle_ransac_iq(z,
     # refine using all inliers
     xc, yc, R = fit_circle_least_squares(best_inliers)
 
-    # # ---- Plot IQ data and fitted circle (single plot) ----
-    # fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
-    # ax.scatter(pts[:, 0], pts[:, 1], s=1)
-    # theta = np.linspace(0, 2 * np.pi, 400)
-    # ax.plot(xc + R * np.cos(theta), yc + R * np.sin(theta), color='red')
-    # ax.scatter([xc], [yc])
-    # ax.set_aspect('equal', adjustable='box')
-    # ax.set_xlabel('I')
-    # ax.set_ylabel('Q')
-    # ax.set_title('IQ constellation with fitted circle center')
-    # ax.grid(True)
-    # ax.text(xc, yc, f"({xc:.3f}, {yc:.3f})",
-    #         ha='left', va='bottom')
+    # ---- Plot IQ data and fitted circle (single plot) ----
+    fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
+    ax.scatter(pts[:, 0], pts[:, 1], s=1)
+    theta = np.linspace(0, 2 * np.pi, 400)
+    ax.plot(xc + R * np.cos(theta), yc + R * np.sin(theta), color='red')
+    ax.scatter([xc], [yc])
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_xlabel('I')
+    ax.set_ylabel('Q')
+    ax.set_title('IQ constellation with fitted circle center')
+    ax.grid(True)
+    ax.text(xc, yc, f"({xc:.3f}, {yc:.3f})", ha='left', va='bottom')
 
-    #plt.show()
+    # 保存 SVG（先保存后关闭，不弹窗）
+    os.makedirs("figuressss", exist_ok=True)
+    filename = f"iq_circle_.svg"
+    svg_path = os.path.join("figuressss", filename)
+    plt.savefig(svg_path, format='svg', bbox_inches='tight')
+    plt.close(fig)
+    print(f"Saved SVG: {svg_path}")
 
     return xc, yc, R
+

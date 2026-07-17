@@ -1,17 +1,35 @@
-import numpy as np
+# 批量处理脚本
+# 使用方式: python scripts/Batch_process.py <数据文件夹路径> [输出目录]
+
+import sys
 import os
-from tqdm import tqdm 
+import numpy as np
+from tqdm import tqdm
 from radar_project.utils import read_and_decode
 from radar_project.range_fft import range_fft, final_signal
 from radar_project.DC_Eliminate import fit_circle_ransac_iq
-from radar_project.displacement_processing import compute_displacement 
+from radar_project.displacement_processing import compute_displacement
 
 # ===== 数据文件夹 =====
-data_folder = r"F:\data_new"
+if len(sys.argv) < 2:
+    print("用法: python scripts/Batch_process.py <数据文件夹路径> [输出目录]")
+    print("示例: python scripts/Batch_process.py F:/data_new F:/my_output")
+    sys.exit(1)
+
+data_folder = sys.argv[1]
+output_root = sys.argv[2] if len(sys.argv) >= 3 else "batch_output"
+
+if not os.path.isdir(data_folder):
+    print(f"错误: 文件夹不存在 - {data_folder}")
+    sys.exit(1)
 
 # ===== 获取所有 bin 文件 =====
 file_list = [f for f in os.listdir(data_folder) if f.endswith(".bin")]
 total_files = len(file_list)
+
+if total_files == 0:
+    print(f"错误: 在 {data_folder} 中未找到 .bin 文件")
+    sys.exit(1)
 
 print(f"✅ 找到 {total_files} 个 .bin 文件，开始处理...\n")
 
@@ -20,9 +38,9 @@ for file in tqdm(file_list, desc="整体进度", unit="文件"):
 
     file_path = os.path.join(data_folder, file)
     name = os.path.splitext(os.path.basename(file_path))[0]
-    print(f"正在处理{name}\n")
+    print(f"正在处理 {name}\n")
     try:
-        # ===== 你原来的 main 内容 =====
+        # ===== 雷达参数 =====
         c_v = 3e8
         FFT_len = 1024
         num_chirps = 24
@@ -49,8 +67,6 @@ for file in tqdm(file_list, desc="整体进度", unit="文件"):
         signal = final_signal(range_data, target_bins)
         signal = signal - np.mean(signal)
 
-        
-        #去直流偏置看看效果
         for i in range(len(target_bins)):
             xc, yc, R = fit_circle_ransac_iq(signal[i])
             if xc is None:
@@ -69,7 +85,7 @@ for file in tqdm(file_list, desc="整体进度", unit="文件"):
             highcut=5.0,
             filter_order=4,
             save_csv=True,
-            save_root = r"F:\\my_output_new_DC",
+            save_root=output_root,
             save_dir="output_" + name
         )
 
