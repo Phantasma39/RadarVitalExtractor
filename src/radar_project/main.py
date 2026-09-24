@@ -1,6 +1,18 @@
 import sys
 import os
+
 import numpy as np
+
+# 中文 Windows 控制台默认是 GBK，打印 emoji（如 ✅⚠️）会抛 UnicodeEncodeError
+# 直接中断整个处理流程。这里把标准输出改成 UTF-8；若终端不支持则退化为
+# 不可编码字符替换，保证不会因为一行日志把程序跑挂。
+for _stream in (sys.stdout, sys.stderr):
+    if _stream is not None and hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            pass
+
 import matplotlib
 matplotlib.use('Agg')  # 非交互式后端，避免弹窗
 import matplotlib.pyplot as plt
@@ -69,13 +81,19 @@ def process_single_bin(file_path, output_root="output", fft_len=1024,
     # ===== 5. DC 消除（RANSAC 圆拟合）=====
     if do_dc_eliminate:
         print("  执行 DC 消除（RANSAC 圆拟合）...")
+        failed = []
         for i in range(len(target_bins)):
-            xc, yc, R = fit_circle_ransac_iq(signal[i])
+            xc, yc, R = fit_circle_ransac_iq(signal[i], verbose=False)
             if xc is None:
-                print(f"  通道{i} 拟合失败，取平均值处理")
+                # 注意：这里不做任何处理，信号原样进入下一步。
+                # 未扣除直流中心时相位可能绕着偏移点转，容易产生漂移。
+                failed.append(i)
+                print(f"  通道{i} 拟合失败，未做直流消除（结果可能不可靠）")
             else:
                 signal[i] = signal[i] - xc - yc * 1j
                 print(f"  通道{i} 拟合成功 (xc={xc:.3f}, yc={yc:.3f})")
+        if failed:
+            print(f"  [警告] 共 {len(failed)}/{len(target_bins)} 个通道未能消除直流: {failed}")
 
     # ===== 6. 计算微位移 =====
     print("  计算微位移...")

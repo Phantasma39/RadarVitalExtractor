@@ -9,6 +9,8 @@ venv/
 .venv/
 
 # ===== 数据文件 =====
+# 采集到的原始数据体积很大（单文件数百 MB），一律不入库
+data/
 *.csv
 *.bin
 
@@ -58,10 +60,16 @@ Thumbs.db
 .vscode/
 .idea/
 
+# ===== 本地配置 =====
+# 界面里「另存为预设」保存的用户预设，属于个人配置，不入库
+config/
+
 # ===== build / dist =====
 build/
 dist/
 *.egg-info/
+# PyInstaller 在根目录自动生成的 spec（我们用 packaging/radar_gui.spec）
+/RadarVitalExtractor.spec
 
 # ===== 临时文件 =====
 *.tmp
@@ -72,9 +80,8 @@ dist/
 .matplotlib/
 
 # ===== 本地工具（不上传）=====
-src/radar_project/Delete.py
+# 按概率批量删除结果文件的破坏性脚本，只在自己机器上使用
 scripts/Delete.py
-scripts/Draw.py
 
 # ===== pip cache =====
 pip-wheel-metadata/

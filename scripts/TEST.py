@@ -13,7 +13,10 @@ import matplotlib.pyplot as plt
 def read_bin_complex2x_4lane(bin_file):
     raw = np.fromfile(bin_file, dtype=np.int16)
 
-    data = raw.reshape(-1, 4)
+    # 截断到 4 的整数倍，避免文件被截断时 reshape 直接报错
+    if raw.size < 4:
+        raise ValueError(f"文件过短，无法解析: {bin_file} (仅 {raw.size} 个 int16)")
+    data = raw[: raw.size // 4 * 4].reshape(-1, 4)
 
     lane0 = data[:, 0]
     lane1 = data[:, 1]
@@ -31,7 +34,16 @@ def read_bin_complex2x_4lane(bin_file):
 
 # ================== 2. reshape ==================
 def reshape_adc(adc, num_frames, num_chirps, num_rx, num_samples):
-    adc = adc[:num_frames * num_chirps * num_rx * num_samples]
+    # adc 形状是 (N, 2)，展平后每个复数算 1 个元素，安全上界就是 total。
+    total = num_frames * num_chirps * num_rx * num_samples
+    n = adc.shape[0] * adc.shape[1]
+    if n < total:
+        raise ValueError(
+            f"数据长度不足：需要 {total} 个复采样点，实际只有 {n} 个。"
+            f"请检查采集参数或 bin 文件是否被截断。"
+        )
+
+    adc = adc[:total]
 
     adc = adc.reshape(num_frames, num_chirps, num_rx, num_samples)
 

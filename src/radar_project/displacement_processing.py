@@ -1,18 +1,64 @@
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.signal import butter, filtfilt, detrend
 import os
+
+import matplotlib
+matplotlib.use("Agg")  # 非交互式后端，避免无显示环境下弹窗
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy.signal import butter, filtfilt, detrend
+
 from radar_project.Judge import judge_channel
 
 
 # ===== 1. 带通滤波器 =====
-def bandpass_filter(data, fs, lowcut, highcut, order=4):
+def bandpass_filter(data, fs, lowcut, highcut, order=4, axis=-1):
+    """
+    零相位 Butterworth 带通滤波。
+
+    参数
+    ----------
+    data : np.ndarray
+        输入数据，一维或任意维。
+    fs : float
+        采样率（Hz）。
+    lowcut, highcut : float
+        带通上下截止频率（Hz）。
+    order : int
+        滤波器阶数。
+    axis : int
+        沿哪一维滤波。默认 -1（最后一维），对 (通道, 帧) 与一维数组都正确。
+        旧版本硬编码 axis=1，传入一维数组会直接 IndexError。
+
+    返回
+    ----------
+    np.ndarray
+        与输入同形状的滤波结果。
+    """
     nyq = 0.5 * fs
+
+    if not 0 < lowcut < highcut:
+        raise ValueError(f"要求 0 < lowcut < highcut，当前 lowcut={lowcut}, highcut={highcut}")
+    if highcut >= nyq:
+        raise ValueError(
+            f"highcut={highcut}Hz 超过奈奎斯特频率 {nyq}Hz（fs={fs}），滤波器设计无意义"
+        )
+
     low = lowcut / nyq
     high = highcut / nyq
 
     b, a = butter(order, [low, high], btype='band')
-    return filtfilt(b, a, data, axis=1)
+    return filtfilt(b, a, data, axis=axis)
+
+
+def _resolve_save_root(save_root):
+    """
+    解析输出根目录。
+
+    旧版本 save_root 默认值是硬编码的 r"D:\\my_output"（只有作者本机存在），
+    不显式传参时会在 D 盘建目录甚至直接失败。现在默认落在当前工作目录下的 output/。
+    """
+    if save_root is None:
+        return os.path.join(os.getcwd(), "output")
+    return save_root
 
 
 # ===== 2. 微位移计算主函数 =====
@@ -27,8 +73,10 @@ def compute_displacement(
         filter_order=4,
         save_csv=True,
         save_dir="output",
-        save_root = r"D:\\my_output",
-        draw=False
+        save_root=None,
+        draw=False,
+        svg_dir=None,
+        verbose=True
 ):
     """
     final_signal: (12, Frame) 复数信号
@@ -40,7 +88,7 @@ def compute_displacement(
     phase = np.angle(final_signal)
 
     # ===== 2. 相位解缠 =====
-    phase_unwrap =np.unwrap(phase, axis=1)
+    phase_unwrap = np.unwrap(phase, axis=1)
 
     # ===== 3. 转微位移 =====
     disp = (c / (4 * np.pi * fc)) * (phase_unwrap - phase_unwrap[:, [0]])
@@ -56,10 +104,14 @@ def compute_displacement(
             fs=frame_rate,
             lowcut=lowcut,
             highcut=highcut,
-            order=filter_order
+            order=filter_order,
+            axis=1
         )
 
+    save_root = _resolve_save_root(save_root)
+
     # ===== 6. 保存CSV（带时间）=====
+    scores = None
     if save_csv:
 
         # ===== 在总目录下再建子文件夹 =====
@@ -75,26 +127,23 @@ def compute_displacement(
         for ch in range(disp.shape[0]):
             is_good, prob = judge_channel(disp[ch], frame_rate)
             scores.append(prob)
-            if True:
-                filename = os.path.join(final_save_dir, f"channel_{ch}_prob_{int(prob*100)}.csv")
 
-                data_to_save = np.column_stack((t, disp[ch]))
+            filename = os.path.join(final_save_dir, f"channel_{ch}_prob_{int(prob * 100)}.csv")
+
+            data_to_save = np.column_stack((t, disp[ch]))
+            if verbose:
                 print(filename)
-                np.savetxt(
-                    filename,
-                    data_to_save,
-                    delimiter=',',
-                    header="time(s),displacement(m)",
-                    comments=''
-                )
-
-                #print(f"通道{ch}结果较好，已经保存,概率为{prob}")
-
-            else:
-                print(f"通道{ch}结果较差，噪声过大或没有对准，概率为{prob}未保存")
+            np.savetxt(
+                filename,
+                data_to_save,
+                delimiter=',',
+                header="time(s),displacement(m)",
+                comments=''
+            )
 
         scores = np.array(scores)
-        best_idx = np.argmax(scores)
+
+    # ===== 7. 画图 =====
     if draw:
         # 计算所有通道的统一纵坐标范围
         all_disp = disp.flatten()
@@ -104,22 +153,31 @@ def compute_displacement(
         y_min -= margin
         y_max += margin
 
-        # 保存到 save_root 下的 SVG 文件夹（例如 F:\my_output\SVG）
-        svg_root = os.path.join(save_root, "SVG_2")
+        # 保存到 save_root 下的 SVG 文件夹（例如 output/SVG_2）
+        svg_root = svg_dir if svg_dir is not None else os.path.join(save_root, "SVG_2")
         os.makedirs(svg_root, exist_ok=True)
 
         for ch in range(disp.shape[0]):
-            plt.figure(figsize=(16, 4))
+            fig = plt.figure(figsize=(16, 4))
             plt.plot(disp[ch])
             plt.title(f"Channel {ch} - Displacement")
             plt.xlabel("Frame")
             plt.ylabel("Displacement (m)")
             plt.grid(True)
-            plt.ylim(y_min, y_max)      # 统一纵坐标
+            plt.ylim(y_min, y_max)
 
             svg_path = os.path.join(svg_root, f"displacement_ch{ch}.svg")
             plt.savefig(svg_path, format='svg', bbox_inches='tight')
-            print(f"已保存: {svg_path}")
-            plt.close()
+            if verbose:
+                print(f"已保存: {svg_path}")
+            plt.close(fig)
 
-    return disp[best_idx]
+    # ===== 8. 返回最佳通道的微位移 =====
+    # 说明：这里返回的是 judge_channel 打分最高的那一维，而不是全通道矩阵。
+    # 旧版本在 save_csv=False 时 scores/best_idx 未定义会直接 UnboundLocalError。
+    if scores is not None and len(scores) > 0:
+        best_idx = int(np.argmax(scores))
+        return disp[best_idx]
+
+    # 未保存 CSV 时没有打分依据，退回第 0 通道（行为可预期，不再抛异常）
+    return disp[0]

@@ -1,12 +1,12 @@
 # 这是一个画图用的文件，我想到什么就画什么
-# 使用方式: python -m radar_project.Draw <bin文件路径> [输出目录]
+# 使用方式: python -m radar_project.Draw <bin文件路径> [输出目录] [fft_len]
 
-import sys
 import os
-import numpy as np
+import sys
+
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+import numpy as np
 
 from radar_project.utils import read_and_decode
 from radar_project.range_fft import range_fft, final_signal
@@ -49,6 +49,8 @@ def draw_process(file_path, output_root="output", fft_len=1024):
 
     signal = final_signal(range_data, target_bins)
 
+    # 注意：此处与 main.process_single_bin 不同，不做 RANSAC 直流消除，
+    # 保留原始轨迹用于观察星座图漂移。
     disp = compute_displacement(
         signal,
         fc=fc,
@@ -65,11 +67,13 @@ def draw_process(file_path, output_root="output", fft_len=1024):
     )
 
     print(f"完成！结果保存到: {os.path.join(output_root, 'output_' + name)}")
+    return disp
 
 
 def main():
     if len(sys.argv) < 2:
-        print("用法: python -m radar_project.Draw <bin文件路径> [输出目录]")
+        print("用法: python -m radar_project.Draw <bin文件路径> [输出目录] [fft_len]")
+        print("示例: python -m radar_project.Draw F:/data_new/adc_data_Raw_xxx.bin output 1024")
         sys.exit(1)
 
     file_path = sys.argv[1]
@@ -78,7 +82,8 @@ def main():
         sys.exit(1)
 
     output_root = sys.argv[2] if len(sys.argv) >= 3 else "output"
-    draw_process(file_path, output_root=output_root)
+    fft_len = int(sys.argv[3]) if len(sys.argv) >= 4 else 1024
+    draw_process(file_path, output_root=output_root, fft_len=fft_len)
 
 
 if __name__ == "__main__":
