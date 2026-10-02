@@ -2,12 +2,15 @@
 
 基于 TI-IWR1843 毫米波雷达的**生命体征信号处理项目**。
 
-> 📖 **完整说明文档（86 页 PDF）**：[docs/latex/main.pdf](docs/latex/main.pdf)
+**当前版本：v0.3.0** · [更新记录](#更新记录)
+
+> 📖 **完整说明文档（94 页 PDF）**：`docs/latex/main.pdf`
 >
 > 涵盖雷达参数与 FMCW 原理、原始数据格式（IIQQ）的来龙去脉、
 > 处理流水线每一步的数学推导与代码实现、图形界面、多进程批处理、
-> exe 打包、故障排查、API 参考与缺陷档案。
-> LaTeX 源码在 [docs/latex/](docs/latex/)，用 `latexmk -xelatex main.tex` 编译。
+> 断点续处理、exe 打包、故障排查、API 参考与缺陷档案（19 个 bug）。
+> LaTeX 源码在 `docs/latex/`，用 `latexmk -xelatex main.tex` 编译。
+> 该目录未纳入版本管理（含数 MB 的 PDF 产物）。
 
 ---
 
@@ -167,6 +170,21 @@ cd RadarVitalExtractor
 pip install -e .
 ```
 
+> **关于 tqdm**：只有**命令行版**的批量脚本 `scripts/Batch_process.py`
+> 需要 `tqdm`（显示进度条）。它在 `requirements.txt` 里，装包时会一起装上。
+>
+> 如果没装 tqdm 又想批量处理，用图形界面或 Python 调用即可，
+> 它们**不依赖 tqdm**：
+>
+> ```bash
+> python scripts/gui.py                       # 图形界面批处理（推荐）
+> ```
+>
+> ```python
+> from radar_project.gui import process_folder
+> process_folder("data", "output", file_glob="*.bin")   # 多进程 + 断点续处理
+> ```
+
 ### 1b. 打包成 exe（给别人用，对方不用装 Python）
 
 ```powershell
@@ -257,7 +275,7 @@ python scripts/run_pipeline_grid.py data/TEST.bin output_TEST
 **其他入口：**
 
 ```bash
-# 批量处理整个文件夹（需要 tqdm）
+# 批量处理整个文件夹（命令行版，需要 tqdm）
 python scripts/Batch_process.py <数据文件夹> [输出目录]
 
 # IQ 星座图分析
@@ -374,12 +392,61 @@ DCA1000 采集的 int16 数据，**每个采样点占 8 个 int16**：
 
 ## 当前已实现功能
 
-- ✅ 雷达原始数据（ADC/IQ）读取与解析
+- ✅ 雷达原始数据（ADC/IQ）读取与解析（支持 IIQQ / IQIQ / IIIIQQQQ 三种排布）
 - ✅ 基础 DC 消除（RANSAC 圆拟合）
-- ✅ Range FFT 与目标 bin 选取
+- ✅ Range FFT 与目标 bin 选取（支持「各自选峰」「估计范围」）
 - ✅ 微位移计算（相位解缠 + 带通滤波）
 - ✅ 通道质量自动判断（随机森林模型）
-- ✅ 批量处理脚本
+- ✅ 图形界面（12 通道竖排显示、图表可框选放大）
+- ✅ 多进程并行批处理 + **断点续处理**
+- ✅ 打包成 Windows exe（含 scipy 编译扩展的正确收集）
+
+---
+
+## 更新记录
+
+### v0.3.0
+
+**新增**
+
+- 批处理**断点续处理**：扫描输出目录，跳过已完成的文件
+  - 「已完成」判定：12 个通道 CSV 齐全 **且** 命名规则与当前设置一致
+  - 界面新增「断点续处理」勾选框与「扫描」按钮（扫描只报告，不处理）
+  - 实测续处理结果与全新处理**逐位一致**（最大数值差 0）
+
+**修正**
+
+- `read_and_decode` 的 `max_samples` 文档说明：它是「最多读取的采样点数」
+  而非帧数，且必须与 `num_frames` 配套降低，否则 reshape 会报长度不足
+
+### v0.2.0
+
+**核心修复**
+
+- **修正 IIQQ 排布下的解码错位**（最严重的 bug）：原实现把相邻采样点的
+  同一位凑成一个采样点，导致 RX1/RX2/RX3 样本整体错位
+  （RX0 因偏移为 0 恰好正确，所以极难发现）
+- `bandpass_filter` 支持任意维度（原来硬编码 `axis=1`，传一维数组会 IndexError）
+- `displacement_processing` 去掉硬编码的 `D:\my_output` 路径
+- 修复 `save_csv=False` 时 `best_idx` 未定义导致的崩溃
+- `DC_Eliminate` 把强制写 SVG 的副作用改为可选
+- `Judge` 模型路径改用 `resources.resource_path`，打包后也能找到
+- 修复 GBK 控制台输出 emoji 导致 `UnicodeEncodeError` 中断整个流程
+
+**新增**
+
+- **图形界面**：12 通道竖排可滚动显示；每张图带 matplotlib 标准导航栏
+  （Home 返回、**Zoom 框选放大**）；滤波频带可选可自定义且切换不需重跑；
+  目标距离**按 cm 输入、自动换算 bin**；大波动检查；参数预设；五种视图
+- **多进程并行批处理**：每个文件一个进程；逐文件释放内存；可中止
+- **打包成 exe**：`packaging/radar_gui.spec` 用 `collect_all` +
+  `collect_dynamic_libs` 收集 scipy/sklearn 的编译扩展
+- `resources.py` 资源路径定位，兼容源码运行与 PyInstaller 打包
+
+### v0.1.0
+
+首个版本：数据读取与解码、RANSAC 直流消除、Range FFT、
+微位移计算、带通滤波、通道质量判断。
 
 ---
 
