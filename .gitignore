@@ -83,5 +83,11 @@ dist/
 # 按概率批量删除结果文件的破坏性脚本，只在自己机器上使用
 scripts/Delete.py
 
+# ===== 说明文档的 LaTeX 工程（本地保留，不入库）=====
+# 里面有编译产物 PDF（数 MB）和封面图，体积大且属于本地资料
+docs/latex/
+# ElegantBook 模板副本（体积大，需要时自行下载）
+ElegantBook-4.7/
+
 # ===== pip cache =====
 pip-wheel-metadata/

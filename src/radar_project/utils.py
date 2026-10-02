@@ -236,8 +236,15 @@ def read_and_decode(bin_file,
     读取并解码一个 .bin 采集文件，输出 MIMO 虚拟通道。
 
     参数都可以显式覆盖——采集配置变化时不必再改源码。
-    max_samples 用于快速预览：只解析前若干个采样点。
-    layout 指定原始数据的 I/Q 排布，见 LAYOUT_CHOICES。
+
+    max_samples : int or None
+        最多读取多少个**采样点**（不是帧数！）。用于只读文件开头一段。
+        注意它必须与 num_frames 配套：若只截断读取却不降低 num_frames，
+        reshape 会因长度不足而报错。GUI 的「快速预览」就是这样成对设置的：
+            num_frames  = min(num_frames, preview_frames)
+            max_samples = num_frames * num_chirps * num_samples
+    layout : str
+        原始数据的 I/Q 排布，见 LAYOUT_CHOICES。
 
     返回
     ----------

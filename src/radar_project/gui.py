@@ -572,6 +572,93 @@ def _process_one_file(path, outdir, compute_kwargs, export_opts):
         return (path, None, f"{type(e).__name__}: {e}")
 
 
+def output_dir_for(bin_path, outdir):
+    """某个 bin 文件对应的输出子目录。"""
+    return os.path.join(outdir, os.path.splitext(os.path.basename(bin_path))[0])
+
+
+def is_already_done(bin_path, outdir, export_opts=None, n_ch=12):
+    """
+    判断某个 bin 是否已经处理完成（用于批处理的断点续处理）。
+
+    判定标准（必须同时满足）：
+      1) 输出子目录存在；
+      2) 目录里有 n_ch 个 CSV 文件（12 个通道一个不少）；
+      3) 这些文件名符合当前的命名规则（前缀 / 后缀 / 扩展名）。
+
+    第 3 条很重要：如果你改了前缀就重新跑，旧结果不该被当成"已完成"，
+    否则会得到一批命名规则混杂的结果目录。
+
+    返回 (bool, 说明字符串)。
+    """
+    opts = dict(export_opts or {})
+    prefix = (opts.get("prefix") or "channel").strip()
+    suffix = (opts.get("suffix") or "").strip()
+    ext = (opts.get("ext") or ".csv").strip()
+    if not ext.startswith("."):
+        ext = "." + ext
+
+    sub = output_dir_for(bin_path, outdir)
+    if not os.path.isdir(sub):
+        return False, "无输出目录"
+
+    try:
+        names = os.listdir(sub)
+    except OSError as e:
+        return False, f"无法读取输出目录: {e}"
+
+    # 只统计符合当前命名规则的文件：<前缀>_<通道>[ _<后缀>]...<ext>
+    head = f"{prefix}_"
+    tail = f"_{suffix}" if suffix else ""
+    found = set()
+    for fn in names:
+        if not fn.lower().endswith(ext.lower()):
+            continue
+        stem = fn[: len(fn) - len(ext)]
+        if not stem.startswith(head):
+            continue
+        rest = stem[len(head):]
+        if tail:
+            if not rest.endswith(tail):
+                continue
+            rest = rest[: len(rest) - len(tail)]
+        else:
+            # 无后缀时，通道号后面可能还跟着 _prob_XX，需要切掉
+            rest = rest.split("_", 1)[0]
+        if rest.isdigit():
+            found.add(int(rest))
+
+    want = set(range(n_ch))
+    if len(found) == n_ch:
+        return True, f"{n_ch} 个通道齐全"
+    missing = sorted(want - found)
+    if not found:
+        return False, "无符合命名规则的输出"
+    return False, f"只有 {len(found)}/{n_ch} 个通道（缺 {missing}）"
+
+
+def scan_done(files, outdir, export_opts=None):
+    """
+    扫描哪些文件已经处理完成。
+
+    返回 (done_map, todo_files, detail_list)
+      done_map  : {path: 说明}
+      todo_files: 还需要处理的文件列表（保持输入顺序）
+      detail_list: [(path, 是否完成, 说明), ...]
+    """
+    done_map = {}
+    todo = []
+    detail = []
+    for p in files:
+        ok, why = is_already_done(p, outdir, export_opts)
+        detail.append((p, ok, why))
+        if ok:
+            done_map[p] = why
+        else:
+            todo.append(p)
+    return done_map, todo, detail
+
+
 def default_worker_count(n_files=None):
     """
     默认并行进程数。
@@ -589,7 +676,7 @@ def default_worker_count(n_files=None):
 
 def process_folder(folder, outdir, *, file_glob="*.bin", recursive=False,
                    progress=None, should_stop=None, export_opts=None,
-                   workers=None, files=None, **compute_kwargs):
+                   workers=None, files=None, resume=False, **compute_kwargs):
     """
     批量处理一个文件夹里的所有 .bin 文件，每个文件输出 12 个通道的 CSV。
 
@@ -612,11 +699,16 @@ def process_folder(folder, outdir, *, file_glob="*.bin", recursive=False,
         并行进程数。None = 自动；1 = 串行（不起子进程）。
     export_opts : dict or None
         CSV 命名/格式选项，见 write_displacement_csvs。
+    resume : bool
+        断点续处理。为 True 时先扫描输出目录，
+        跳过已经处理完成的文件，只处理剩下的。
+        "已完成"的判定见 is_already_done（12 个通道齐全 且 命名规则一致）。
 
     返回
     ----
     dict: {'ok': [(path, out_dir), ...], 'failed': [(path, err), ...],
-           'skipped': [path, ...], 'workers': int, 'seconds': float}
+           'skipped': [path, ...], 'resumed': [(path, 说明), ...],
+           'workers': int, 'seconds': float}
     """
     import glob as _glob
     import time
@@ -637,13 +729,37 @@ def process_folder(folder, outdir, *, file_glob="*.bin", recursive=False,
 
     n = len(files)
     result = {"ok": [], "failed": [], "skipped": [],
-              "workers": 1, "seconds": 0.0}
+              "resumed": [], "workers": 1, "seconds": 0.0}
     if n == 0:
         if progress:
             progress(f"文件夹里没有匹配 {file_glob} 的文件", 1.0)
         return result
 
     opts = dict(export_opts or {})
+
+    # ---------- 断点续处理：先扫描哪些已经做完了 ----------
+    if resume:
+        done_map, todo, detail = scan_done(files, outdir, opts)
+        result["resumed"] = [(p, done_map[p]) for p in files if p in done_map]
+        if progress:
+            progress(f"断点续处理：已扫描 {n} 个文件，"
+                     f"已完成 {len(done_map)} 个，待处理 {len(todo)} 个", 0.0)
+            # 已完成的逐条报告，便于确认
+            for p, ok, why in detail:
+                if ok:
+                    progress(f"  [跳过] {os.path.basename(p)}: {why}", None)
+            for p, ok, why in detail:
+                if not ok and why != "无输出目录":
+                    # 只报告"开始做了但没做完"的，纯新的文件不啰嗦
+                    progress(f"  [待处理] {os.path.basename(p)}: {why}", None)
+        if not todo:
+            result["seconds"] = time.perf_counter() - t_start
+            if progress:
+                progress(f"断点续处理：{n} 个文件全部已完成，无需处理", 1.0)
+            return result
+        files = todo
+        n = len(files)
+
     n_workers = default_worker_count(n) if workers is None else int(workers)
     n_workers = max(1, min(n_workers, n))
 
@@ -1146,6 +1262,7 @@ class RadarGUI:
         self.var_batch_rec = tk.BooleanVar(value=False)
         self.var_batch_ext = v(".bin")
         self.var_batch_workers = v(str(default_worker_count()))
+        self.var_batch_resume = tk.BooleanVar(value=False)
 
         self.var_band = v(BAND_DEFAULT)
         self.var_view = v("list")
@@ -1476,6 +1593,16 @@ class RadarGUI:
                     textvariable=self.var_batch_workers).pack(side=tk.LEFT, padx=3)
         ttk.Label(rb4, text=f"（自动={default_worker_count()}）",
                   foreground="#777").pack(side=tk.LEFT)
+
+        rb5 = ttk.Frame(fb)
+        rb5.pack(fill=tk.X, pady=(3, 0))
+        ttk.Checkbutton(rb5, text="断点续处理",
+                        variable=self.var_batch_resume).pack(side=tk.LEFT)
+        ttk.Button(rb5, text="扫描", width=6,
+                   command=self.on_batch_scan).pack(side=tk.LEFT, padx=4)
+        ttk.Label(rb5, text="勾选后跳过输出目录里已完成的文件",
+                  foreground="#777").pack(side=tk.LEFT)
+
         ttk.Label(fb,
                   text="多进程并行：每个文件一个进程。CPU 核数 - 1，上限 4，\n"
                        "填 1 则串行。进程越多越快，但内存占用也成倍上升。",
@@ -1896,6 +2023,77 @@ class RadarGUI:
         if path:
             self.var_batch_out.set(path)
 
+    def _export_opts(self):
+        """当前界面上的 CSV 命名/格式选项（批处理与导出共用）。"""
+        return dict(
+            prefix=self.var_prefix.get(),
+            suffix=self.var_suffix.get(),
+            ext=self.var_ext.get(),
+            delim={"comma": ",", "tab": "\t", "space": " "}[
+                self.var_delim.get()],
+            header=bool(self.var_header.get()),
+            tag_prob=bool(self.var_tag_prob.get()))
+
+    def on_batch_scan(self):
+        """扫描输入文件夹，报告哪些已处理完成、哪些待处理（不真正处理）。"""
+        folder = self.var_batch_in.get().strip()
+        if not folder or not os.path.isdir(folder):
+            messagebox.showerror("输入文件夹无效",
+                                 f"请选择一个有效的输入文件夹。\n当前: {folder!r}")
+            return
+        outdir = self.var_batch_out.get().strip()
+        if not outdir:
+            outdir = os.path.join(folder, "output")
+            self.var_batch_out.set(outdir)
+
+        ext = self.var_batch_ext.get().strip() or ".bin"
+        glob_pat = "*" + (ext if ext.startswith(".") else "." + ext)
+        rec = bool(self.var_batch_rec.get())
+        opts = self._export_opts()
+
+        import glob as _glob
+        pattern = os.path.join(os.path.abspath(folder), "**", glob_pat) \
+            if rec else os.path.join(os.path.abspath(folder), glob_pat)
+        files = sorted(f for f in _glob.glob(pattern, recursive=rec)
+                       if os.path.isfile(f))
+        if not files:
+            self._log(f"[扫描] {folder} 下没有匹配 {glob_pat} 的文件")
+            try:
+                self.lbl_batch.configure(text="扫描: 没有找到文件")
+            except tk.TclError:
+                pass
+            return
+
+        done_map, todo, detail = scan_done(files, os.path.abspath(outdir), opts)
+        self._log("=" * 40)
+        self._log(f"[扫描] 输入: {folder}")
+        self._log(f"[扫描] 输出: {outdir}")
+        self._log(f"[扫描] 共 {len(files)} 个文件，"
+                  f"已完成 {len(done_map)} 个，待处理 {len(todo)} 个")
+        for p, ok, why in detail:
+            tag = "[完成]" if ok else "[待处理]"
+            self._log(f"  {tag} {os.path.basename(p)}: {why}")
+
+        try:
+            self.lbl_batch.configure(
+                text=f"扫描: 共 {len(files)} / 已完成 {len(done_map)} / "
+                     f"待处理 {len(todo)}")
+        except tk.TclError:
+            pass
+
+        if todo:
+            messagebox.showinfo(
+                "扫描结果",
+                f"共 {len(files)} 个文件\n\n"
+                f"已完成: {len(done_map)} 个（可跳过）\n"
+                f"待处理: {len(todo)} 个\n\n"
+                f"勾选「断点续处理」后点「开始批处理」，"
+                f"就只会处理这 {len(todo)} 个。")
+        else:
+            messagebox.showinfo("扫描结果",
+                                f"共 {len(files)} 个文件，已全部处理完成，"
+                                f"无需再处理。")
+
     def on_batch(self):
         """按当前参数批量处理一个文件夹里的所有 bin。"""
         if self._busy:
@@ -1923,13 +2121,8 @@ class RadarGUI:
             workers = max(1, int(float(self.var_batch_workers.get())))
         except (TypeError, ValueError):
             workers = default_worker_count()
-        opts = dict(prefix=self.var_prefix.get(),
-                    suffix=self.var_suffix.get(),
-                    ext=self.var_ext.get(),
-                    delim={"comma": ",", "tab": "\t", "space": " "}[
-                        self.var_delim.get()],
-                    header=bool(self.var_header.get()),
-                    tag_prob=bool(self.var_tag_prob.get()))
+        opts = self._export_opts()
+        resume = bool(self.var_batch_resume.get())
 
         self._busy = True
         self._stop_flag.clear()
@@ -1944,6 +2137,7 @@ class RadarGUI:
         self._log(f"  输出: {outdir}")
         self._log(f"  匹配: {glob_pat}  包含子目录: {rec}")
         self._log(f"  并行进程数: {workers}")
+        self._log(f"  断点续处理: {'开' if resume else '关'}")
         try:
             self.lbl_batch.configure(text="批处理中 ...")
         except tk.TclError:
@@ -1957,7 +2151,8 @@ class RadarGUI:
                 r = process_folder(
                     folder, outdir, file_glob=glob_pat, recursive=rec,
                     progress=report, should_stop=self._stop_flag.is_set,
-                    export_opts=opts, workers=workers, **params)
+                    export_opts=opts, workers=workers, resume=resume,
+                    **params)
                 self.msg_q.put(("batch_done", r))
             except KeyboardInterrupt:
                 self.msg_q.put(("stopped", None))
@@ -2206,14 +2401,21 @@ class RadarGUI:
         self.btn_stop.configure(state=tk.DISABLED)
         self.var_progress.set(100.0)
         n_ok, n_fail, n_skip = len(r["ok"]), len(r["failed"]), len(r["skipped"])
+        n_resume = len(r.get("resumed") or [])
         secs = float(r.get("seconds") or 0.0)
         nw = int(r.get("workers") or 1)
         per = secs / n_ok if n_ok else 0.0
-        self.var_status.set(f"批处理完成: 成功 {n_ok}, 失败 {n_fail}")
+        self.var_status.set(f"批处理完成: 成功 {n_ok}, 失败 {n_fail}"
+                            + (f", 跳过已完成 {n_resume}" if n_resume else ""))
         self._log("-" * 40)
-        self._log(f"批处理完成: 成功 {n_ok}, 失败 {n_fail}, 跳过 {n_skip}")
+        self._log(f"批处理完成: 成功 {n_ok}, 失败 {n_fail}, 跳过 {n_skip}"
+                  + (f", 断点跳过已完成 {n_resume}" if n_resume else ""))
         self._log(f"  耗时 {secs:.1f}s，{nw} 个进程并行，"
                   f"平均 {per:.1f}s/文件")
+        if n_resume:
+            self._log(f"  断点续处理跳过的文件（{n_resume} 个）:")
+            for p, why in r["resumed"]:
+                self._log(f"    [跳过] {os.path.basename(p)}: {why}")
         for p, o in r["ok"]:
             self._log(f"  [OK]   {os.path.basename(p)} -> {o}")
         for p, err in r["failed"]:
@@ -2221,13 +2423,17 @@ class RadarGUI:
         if r["skipped"]:
             self._log(f"  跳过: {[os.path.basename(p) for p in r['skipped']]}")
         try:
-            self.lbl_batch.configure(
-                text=f"完成: 成功 {n_ok} / 失败 {n_fail} / 跳过 {n_skip}\n"
-                     f"{secs:.1f}s，{nw} 进程，{per:.1f}s/文件")
+            txt = (f"完成: 成功 {n_ok} / 失败 {n_fail} / 跳过 {n_skip}\n"
+                   f"{secs:.1f}s，{nw} 进程，{per:.1f}s/文件")
+            if n_resume:
+                txt += f"\n断点跳过 {n_resume} 个已完成"
+            self.lbl_batch.configure(text=txt)
         except tk.TclError:
             pass
         msg = (f"批处理完成。\n\n成功 {n_ok} 个\n失败 {n_fail} 个\n\n"
                f"耗时 {secs:.1f}s（{nw} 进程并行，平均 {per:.1f}s/文件）")
+        if n_resume:
+            msg += f"\n\n断点续处理跳过了 {n_resume} 个已完成的文件。"
         if n_skip:
             msg += f"\n跳过 {n_skip} 个"
         if r["failed"]:
@@ -2806,16 +3012,11 @@ class RadarGUI:
             messagebox.showerror("无法创建输出目录", str(e))
             return
 
-        delim = {"comma": ",", "tab": "\t", "space": " "}[self.var_delim.get()]
         disp = self._current_disp()
         r = self.result
         try:
             saved = write_displacement_csvs(
-                r, outdir, disp=disp,
-                prefix=self.var_prefix.get(), suffix=self.var_suffix.get(),
-                ext=self.var_ext.get(), delim=delim,
-                header=bool(self.var_header.get()),
-                tag_prob=bool(self.var_tag_prob.get()))
+                r, outdir, disp=disp, **self._export_opts())
         except OSError as e:
             messagebox.showerror("保存失败", str(e))
             return
