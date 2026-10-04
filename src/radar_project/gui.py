@@ -23,16 +23,56 @@ from __future__ import annotations
 
 import gc
 import os
+import sys as _sys
+
+
+def _early_log(msg):
+    """
+    模块导入阶段的启动日志（用于排查打包后启动即退出的问题）。
+
+    只在设置了 RADAR_STARTUP_LOG=1 时写文件，默认完全静默。
+    必须在任何重量级 import 之前定义，才能定位到"卡在哪个 import"。
+    """
+    if os.environ.get("RADAR_STARTUP_LOG", "") not in ("1", "true", "yes"):
+        return
+    try:
+        import time
+        if getattr(_sys, "frozen", False):
+            base = os.path.dirname(os.path.abspath(_sys.executable))
+        else:
+            base = os.getcwd()
+        with open(os.path.join(base, "_startup.log"), "a",
+                  encoding="utf-8") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+            f.flush()
+    except Exception:                                       # noqa: BLE001
+        pass
+
+
+_early_log("--- gui.py 开始导入 ---")
+_early_log(f"frozen={getattr(_sys, 'frozen', False)} "
+           f"exe={_sys.executable}")
+_early_log(f"_MEIPASS={getattr(_sys, '_MEIPASS', None)}")
+
 import queue
 import threading
 import traceback
 from datetime import datetime
 
+_early_log("标准库 import 完成")
+
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+_early_log(f"tkinter import 完成 (Tcl={tk.Tcl().eval('info patchlevel')})")
+
 import numpy as np
+
+_early_log(f"numpy import 完成 ({np.__version__})")
+
 from scipy.signal import butter, detrend, filtfilt
+
+_early_log("scipy.signal import 完成")
 
 import matplotlib
 matplotlib.use("TkAgg")
@@ -43,15 +83,33 @@ from matplotlib.backends.backend_tkagg import (  # noqa: E402
 )
 from matplotlib.figure import Figure  # noqa: E402
 
+_early_log("matplotlib import 完成")
+
 from radar_project.utils import (  # noqa: E402
     LAYOUT_CHOICES,
     LAYOUT_DEFAULT,
     read_and_decode,
 )
+
+_early_log("radar_project.utils 完成")
+
 from radar_project.resources import app_dir, default_data_dir  # noqa: E402
+
+_early_log("radar_project.resources 完成")
+
 from radar_project.range_fft import range_fft, final_signal  # noqa: E402
+
+_early_log("radar_project.range_fft 完成")
+
 from radar_project.DC_Eliminate import fit_circle_ransac_iq  # noqa: E402
+
+_early_log("radar_project.DC_Eliminate 完成")
+
+_early_log("即将 import Judge（会加载模型）...")
 from radar_project.Judge import judge_channel  # noqa: E402
+
+_early_log("radar_project.Judge 完成（模型已加载）")
+_early_log("--- gui.py 全部 import 完成 ---")
 
 # ------------------------- 中文字体 -------------------------
 # matplotlib 默认字体不含中文，图上的中文会变成方框。这里自动挑一个可用的中文字体。
@@ -75,7 +133,30 @@ def setup_cjk_font():
     return picked
 
 
-_CJK_FONT = setup_cjk_font()
+# 字体探测要访问 matplotlib 的字体缓存。
+# 打包成 exe 后如果缓存目录不可写，这一步可能直接让进程异常退出，
+# 而且没有任何报错（表现为"双击 exe 闪一下就没"）。因此：
+#   1) 先确保 MPLCONFIGDIR 指向一个可写目录；
+#   2) 整个探测包在 try/except 里，失败就退回默认字体，不影响程序启动。
+try:
+    if getattr(_sys, "frozen", False):
+        # 冻结环境里把 matplotlib 配置放到用户目录，避免写入只读的 _MEIPASS
+        _mpl_dir = os.path.join(
+            os.environ.get("LOCALAPPDATA")
+            or os.path.expanduser("~"), "RadarVitalExtractor", "mpl")
+        os.makedirs(_mpl_dir, exist_ok=True)
+        os.environ.setdefault("MPLCONFIGDIR", _mpl_dir)
+        _early_log(f"MPLCONFIGDIR={os.environ.get('MPLCONFIGDIR')}")
+except Exception as _e:                                     # noqa: BLE001
+    _early_log(f"设置 MPLCONFIGDIR 失败（忽略）: {_e}")
+
+try:
+    _CJK_FONT = setup_cjk_font()
+    _early_log(f"setup_cjk_font() 完成, 选中字体={_CJK_FONT!r}")
+except Exception as _e:                                     # noqa: BLE001
+    _CJK_FONT = None
+    _early_log(f"setup_cjk_font() 失败（忽略，用默认字体）: "
+               f"{type(_e).__name__}: {_e}")
 
 
 # =========================================================================
@@ -205,6 +286,7 @@ BUILTIN_PRESETS = {
         "note": "只开了 2 个接收通道时用（每个采样点 4 个 int16）。",
     },
 }
+
 
 
 def load_user_presets():
@@ -3029,32 +3111,80 @@ class RadarGUI:
 
 
 # =========================================================================
+def _startup_log(msg):
+    """
+    可选的启动日志，用于排查"打包成 exe 后启动即退出"这类问题。
+
+    默认关闭（不产生任何文件）。需要时设置环境变量：
+        set RADAR_STARTUP_LOG=1
+    日志写到 exe/脚本同级目录下的 _startup.log。
+    """
+    if os.environ.get("RADAR_STARTUP_LOG", "") not in ("1", "true", "yes"):
+        return
+    try:
+        import time
+        if getattr(sys, "frozen", False):
+            base = os.path.dirname(os.path.abspath(sys.executable))
+        else:
+            base = os.getcwd()
+        with open(os.path.join(base, "_startup.log"), "a",
+                  encoding="utf-8") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+    except Exception:                                       # noqa: BLE001
+        pass
+
+
 def main():
     # 打包成 exe 后必须调用：否则子进程启动时会重新执行整个脚本，
     # 导致无限递归地 spawn 新进程（Windows 上表现为程序卡死/刷屏）。
     import multiprocessing
     multiprocessing.freeze_support()
 
+    # 注意：这里用模块级的 _sys 别名，不要再写 `import sys`。
+    # 函数内出现 `import sys` 会把 sys 变成局部变量，导致在它之前引用 sys
+    # 触发 UnboundLocalError —— 曾因此让打包后的 exe "闪一下就退出"且无任何提示。
+    _startup_log(f"=== main 开始 (__name__={__name__!r}) ===")
+    _startup_log(f"frozen={getattr(_sys, 'frozen', False)}")
+    _startup_log(f"cwd={os.getcwd()}")
+
     # 中文 Windows 控制台/界面编码兜底
-    import sys
-    for s in (sys.stdout, sys.stderr):
+    for s in (_sys.stdout, _sys.stderr):
         if s is not None and hasattr(s, "reconfigure"):
             try:
                 s.reconfigure(encoding="utf-8", errors="replace")
             except (OSError, ValueError):
                 pass
 
+    _startup_log("创建 Tk 根窗口 ...")
     root = tk.Tk()
+    _startup_log("Tk 根窗口已创建")
     try:
         root.call("tk", "scaling", 1.2)
     except tk.TclError:
         pass
+
+    _startup_log("构造 RadarGUI ...")
     RadarGUI(root)
+    _startup_log(f"RadarGUI 构造完成, 窗口存在={root.winfo_exists()}")
+
+    _startup_log("进入 mainloop ...")
     root.mainloop()
+    _startup_log("mainloop 已返回 —— 界面关闭")
+
+
 
 
 if __name__ == "__main__":
     # 这个判断在打包后同样需要保留（配合 freeze_support）
     import multiprocessing
     multiprocessing.freeze_support()
-    main()
+    try:
+        main()
+    except BaseException as _top_e:                         # noqa: BLE001
+        # 记下任何逃逸出来的异常（包括 SystemExit / KeyboardInterrupt）。
+        # 打包成窗口版 exe 后没有控制台，这类异常会让程序"闪一下就退出"
+        # 且看不到任何原因；有了启动日志就能定位。
+        import traceback as _tb
+        _early_log(f"!!! 顶层异常 {type(_top_e).__name__}: {_top_e}")
+        _early_log(_tb.format_exc())
+        raise

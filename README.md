@@ -4,7 +4,7 @@
 
 **当前版本：v0.3.0** · [更新记录](#更新记录)
 
-> 📖 **完整说明文档（94 页 PDF）**：`docs/latex/main.pdf`
+> 📖 **完整说明文档（97 页 PDF）**：`docs/latex/main.pdf`
 >
 > 涵盖雷达参数与 FMCW 原理、原始数据格式（IIQQ）的来龙去脉、
 > 处理流水线每一步的数学推导与代码实现、图形界面、多进程批处理、
@@ -222,18 +222,36 @@ ImportError: The `scipy` install you are using seems to be broken
 本 spec 用 `collect_all()` + `collect_dynamic_libs()` 把 scipy / sklearn /
 matplotlib 的编译扩展一起收进来，可以避免这个问题。
 
-如果还遇到别的 `ImportError` / `ModuleNotFoundError`：
+**如果你的 Python 来自 conda**（`sys.base_prefix` 指向 anaconda 目录，
+在其上又建了 venv），打包还会遇到两个额外问题，本 spec 也已处理：
+
+| 报错 | 原因 | spec 里的处理 |
+|---|---|---|
+| `ImportError: DLL load failed while importing _ctypes` | conda 把 `ffi.dll`/`liblzma.dll`/openssl/sqlite3 等放在 `Library\bin\`，PyInstaller 找不到 | 从 `_ctypes.pyd` 反推 conda 目录，显式加入 8 个 DLL |
+| `version conflict for package "Tcl": have 8.6.5, need 8.6.15` | 自动收集的 Tcl 版本与环境不一致 | 把 `tcl86t.dll`/`tk86t.dll` **替换**为 conda 版本 |
+
+**如果 exe 双击后「闪一下就退出」、没有任何提示**：
 
 ```powershell
-# 保留控制台窗口重新打包，运行时就能看到具体缺什么
-python scripts/build_exe.py --console
+# 第一步：用 --console 打包，让报错显示出来
+python scripts/build_exe.py --clean --console
+
+# 第二步：若仍无输出，开启启动日志（默认关闭，不影响正常使用）
+$env:RADAR_STARTUP_LOG=1
+dist\RadarVitalExtractor\RadarVitalExtractor.exe
+type dist\RadarVitalExtractor\_startup.log
 ```
+
+启动日志会记录：冻结状态、每个模块的导入完成情况、字体选择、
+窗口创建、进入 mainloop，以及**任何逃逸到顶层的异常和完整 traceback**。
+
+如果还遇到别的 `ImportError` / `ModuleNotFoundError`，同样用 `--console` 即可。
 
 其他常见问题：
 
 - **删不掉 `dist/`**：说明 exe 还开着（文件被占用），先把程序关掉
 - **打包慢**：PyInstaller 需要分析 numpy/scipy/sklearn 的全部依赖，首次几分钟正常
-- **体积大**：目录版约 200+ MB，因为 numpy/scipy/sklearn/matplotlib 都打进去了；
+- **体积大**：目录版约 250 MB，因为 numpy/scipy/sklearn/matplotlib 都打进去了；
   单文件版更小一些但启动更慢
 
 **其他要点**：
@@ -418,6 +436,21 @@ DCA1000 采集的 int16 数据，**每个采样点占 8 个 int16**：
 
 - `read_and_decode` 的 `max_samples` 文档说明：它是「最多读取的采样点数」
   而非帧数，且必须与 `num_frames` 配套降低，否则 reshape 会报长度不足
+- **修复打包后的 exe 无法启动**（三个独立问题，详见打包章节的排错说明）：
+  1. conda 提供的运行库 DLL（`ffi.dll` 等）没被打进包，导致
+     `ImportError: DLL load failed while importing _ctypes`；
+     现在从 `_ctypes.pyd` 反推 conda 目录并显式收集
+  2. 自动收集的 Tcl 版本（8.6.5）与环境（8.6.15）不一致，
+     导致 Tcl 初始化失败；现在强制替换为 conda 版本
+  3. `main()` 内 `import sys` 造成变量遮蔽，在它之前引用 `sys` 会抛
+     `UnboundLocalError`；窗口版 exe 看不到该异常，
+     表现为「双击闪一下就退出」。改用模块级别名 `_sys`
+
+**新增**
+
+- **启动日志**（默认关闭）：设置 `RADAR_STARTUP_LOG=1` 后，
+  程序把启动过程与顶层异常写入 `_startup.log`，
+  用于排查窗口版 exe「闪退且无提示」的问题
 
 ### v0.2.0
 
